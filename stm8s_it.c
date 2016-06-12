@@ -6,9 +6,15 @@
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+static uint16_t t0, t1;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /* Public functions ----------------------------------------------------------*/
+
+void updatePulseParameters(uint16_t _t0, uint16_t _t1) {
+  t0 = _t0;
+  t1 = _t1;
+}
 
 /** @addtogroup IT_Functions
   * @{
@@ -223,9 +229,18 @@ INTERRUPT_HANDLER(TIM1_CAP_COM_IRQHandler, 12) {
   * @retval None
   */
  INTERRUPT_HANDLER(TIM2_UPD_OVF_BRK_IRQHandler, 13) {
-  /* In order to detect unexpected events during development,
-     it is recommended to set a breakpoint on the following instruction.
-  */
+   static uint16_t t1Shadow = 0;
+   BitStatus servoOutputStatus = (BitStatus)(PORT_SERVO_CONTROL->ODR & (uint8_t)PIN_SERVO_CONTROL);
+   if (servoOutputStatus == RESET) {
+     t1Shadow = t1;
+     TIM2_TimeBaseInit(TIM2_PRESCALER_8, t0);
+     PORT_SERVO_CONTROL->ODR = PIN_SERVO_CONTROL;
+   } else {
+     TIM2_TimeBaseInit(TIM2_PRESCALER_8, t1Shadow);
+     PORT_SERVO_CONTROL->ODR = 0;
+   }
+   
+   TIM2_ClearITPendingBit(TIM2_IT_UPDATE);
  }
 
 /**

@@ -7,7 +7,7 @@
 #define SHMITTRIG_ADC_IN        ADC1_SCHMITTTRIG_CHANNEL4
 
 #define PORT_SERVO_CONTROL      GPIOD
-#define PIN_SERVO_CONTROL       GPIO_PIN_2
+#define PIN_SERVO_CONTROL       GPIO_PIN_3
 
 #define PORT_BUTTON_UP          GPIOC
 #define PIN_BUTTON_UP           GPIO_PIN_7

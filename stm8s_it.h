@@ -36,6 +36,8 @@
 /* Exported constants --------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
+void updatePulseParameters(uint16_t _t0, uint16_t _t1);
+
 #ifdef _COSMIC_
  void _stext(void); /* RESET startup routine */
  INTERRUPT void NonHandledInterrupt(void);
