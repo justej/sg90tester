@@ -1,19 +1,54 @@
 /* Includes ------------------------------------------------------------------*/
+#include <string.h>
 #include "stm8s_it.h"
+#include "bit_utils.h"
 #include "board_cfg.h"
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-static uint16_t t0, t1;
+static Pulse_t dt[N_SERVOS] = {
+  {0, 0},
+  {0, 1},
+  {0, 2}
+};
+static Pulse_t dtShadow[N_SERVOS] = {
+  {0, 0},
+  {0, 1},
+  {0, 2}
+};
+static uint8_t counter;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+void sort(Pulse_t pulse[], uint8_t size) {
+  uint8_t pass, i, j;
+  for (pass = size - 1; pass > 0; pass--) {
+    for (i = size - 1, j = i - 1; i > 0; i--, j--) {
+      if (pulse[i].t < pulse[j].t) {
+        Pulse_t t = pulse[i];
+        pulse[i] = pulse[j];
+        pulse[j] = t;
+      }
+    }
+  }
+}
 /* Public functions ----------------------------------------------------------*/
+void calculateCounterIncrements(Pulse_t pulse[], uint8_t size) {
+  if (size < 2) {
+    return;
+  }
+  
+  sort(pulse, size);
+  
+  uint8_t cur, next;
+  for (next = size - 1, cur = next - 1; next > 0; next--, cur--) {
+    pulse[next].t = pulse[next].t - pulse[cur].t;
+  }
+}
 
-void updatePulseParameters(uint16_t _t0, uint16_t _t1) {
-  t0 = _t0;
-  t1 = _t1;
+void updateCounterIncrements(Pulse_t pulse[], uint8_t size) {
+  memcpy(dt, pulse, N_SERVOS * sizeof(Pulse_t));
 }
 
 /** @addtogroup IT_Functions
@@ -229,16 +264,15 @@ INTERRUPT_HANDLER(TIM1_CAP_COM_IRQHandler, 12) {
   * @retval None
   */
  INTERRUPT_HANDLER(TIM2_UPD_OVF_BRK_IRQHandler, 13) {
-   static uint16_t t1Shadow = 0;
-   BitStatus servoOutputStatus = (BitStatus)(PORT_SERVO_CONTROL->ODR & (uint8_t)PIN_SERVO_CONTROL);
-   if (servoOutputStatus == RESET) {
-     t1Shadow = t1;
-     TIM2_TimeBaseInit(TIM2_PRESCALER_8, t0);
-     PORT_SERVO_CONTROL->ODR = PIN_SERVO_CONTROL;
-   } else {
-     TIM2_TimeBaseInit(TIM2_PRESCALER_8, t1Shadow);
-     PORT_SERVO_CONTROL->ODR = 0;
-   }
+   // Deferred deassertion of servo signals
+   memcpy(dtShadow, dt, N_SERVOS * sizeof(Pulse_t));
+   TIM4_Cmd(ENABLE);
+   
+   counter = 0;
+   // Assert servo signals
+   setBit(PORT_SERVO_ROT->ODR, PIN_SERVO_ROT);
+   setBit(PORT_SERVO_MAIN_ARM->ODR, PIN_SERVO_MAIN_ARM);
+   setBit(PORT_SERVO_TIP_ARM->ODR, PIN_SERVO_TIP_ARM);
    
    TIM2_ClearITPendingBit(TIM2_IT_UPDATE);
  }
@@ -408,9 +442,30 @@ INTERRUPT_HANDLER(TIM6_UPD_OVF_TRG_IRQHandler, 23) {
   * @retval None
   */
  INTERRUPT_HANDLER(TIM4_UPD_OVF_IRQHandler, 23) {
-  /* In order to detect unexpected events during development,
-     it is recommended to set a breakpoint on the following instruction.
-  */
+   // Deassert only required servo signal(s)
+   do {
+     if (counter >= N_SERVOS) {
+       break;
+     }
+     switch (dtShadow[counter].n) {
+     case COUNTER_SERVO_ROT: resetBit(PORT_SERVO_ROT->ODR, PIN_SERVO_ROT); break;
+     case COUNTER_SERVO_MAIN: resetBit(PORT_SERVO_MAIN_ARM->ODR, PIN_SERVO_MAIN_ARM); break;
+     case COUNTER_SERVO_TIP: resetBit(PORT_SERVO_TIP_ARM->ODR, PIN_SERVO_TIP_ARM); break;
+     }
+     // Iterate over all signals with the equal timings
+   } while (dtShadow[++counter].t == 0);
+     
+   if (counter < N_SERVOS) {
+     // Wait for the end of the next pulse
+     TIM4_TimeBaseInit(TIM4_PRESCALER_128, dtShadow[counter].t);
+   } else {
+     // Wrap around
+     TIM4_TimeBaseInit(TIM4_PRESCALER_128, dtShadow[0].t);
+     // Wait for start of pulses (another interrupt enables this timer)
+     TIM4_Cmd(DISABLE);
+   }
+   
+   TIM4_ClearITPendingBit(TIM4_IT_UPDATE);
  }
 #endif /*STM8S903*/
 

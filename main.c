@@ -1,35 +1,49 @@
 /* Includes ------------------------------------------------------------------*/
+#include <string.h>
 #include "stm8s.h"
 #include "stm8s_it.h"
 #include "board_cfg.h"
+#include "bit_utils.h"
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define UPPER_LIMIT             ((uint16_t)4500)
-#define LOWER_LIMIT             ((uint16_t)1500)
-#define STEP                    ((uint16_t)100)
+#define UPPER_LIMIT             ((uint8_t)250)
+#define LOWER_LIMIT             ((uint8_t)125)
+#define STEP                    ((uint8_t)1)
 #define PERIOD                  ((uint16_t)40000)
 
 #define F_CPU                   16000000ul
 /* Private function prototypes -----------------------------------------------*/
 static void CLK_Config();
 static void GPIO_Config();
-static void TIM2_Config(uint16_t, uint16_t);
+static void TIM2_Config(Pulse_t pulse[], uint8_t size);
 
-static void pulse(uint16_t, uint16_t);
 static void delay_ms(uint32_t);
-/* Private functions ---------------------------------------------------------*/
 
-static void pulse(uint16_t t0, uint16_t t1) {
-  PORT_SERVO_CONTROL->ODR = PIN_SERVO_CONTROL;
-  delay_ms(t0);
-  PORT_SERVO_CONTROL->ODR = 0;
-  delay_ms(t1);
-  PORT_SERVO_CONTROL->ODR = PIN_SERVO_CONTROL;
-  delay_ms(t0);
-  PORT_SERVO_CONTROL->ODR = 0;
-  delay_ms(t1);
+static void increasePulseWidth(Pulse_t pulse[], uint8_t size, CounterNumber_t n) {
+  while (size > 0) {
+    size--;
+    if (pulse[size].n == n) {
+      if (pulse[size].t < UPPER_LIMIT) {
+        pulse[size].t += STEP;
+      }
+      return;
+    }
   }
+}
+
+static void decreasePulseWidth(Pulse_t pulse[], uint8_t size, CounterNumber_t n) {
+  while (size > 0) {
+    size--;
+    if (pulse[size].n == n) {
+      if (pulse[size].t > LOWER_LIMIT) {
+        pulse[size].t -= STEP;
+      }
+      return;
+    }
+  }
+}
+/* Private functions ---------------------------------------------------------*/
 
 static void delay_ms(uint32_t ms) {
   while (ms-- > 0) {
@@ -40,32 +54,57 @@ static void delay_ms(uint32_t ms) {
   }
 }
 
-/**
-  * @brief Main entry point.
-  * @param  None
-  * @retval None
-  */
+// Main entry point
 void main(void) {
-  uint16_t t = LOWER_LIMIT;
-  
+  Pulse_t pulse[N_SERVOS] = {
+    {LOWER_LIMIT, COUNTER_SERVO_MAIN},
+    {LOWER_LIMIT, COUNTER_SERVO_TIP},
+    {(LOWER_LIMIT + UPPER_LIMIT) / 2, COUNTER_SERVO_ROT} // Central position
+  };
+  Pulse_t pulseCopy[N_SERVOS];
+  memcpy(pulseCopy, pulse, N_SERVOS * sizeof(Pulse_t));
+
   CLK_Config();
   GPIO_Config();
-  TIM2_Config(t, PERIOD - t);
+  TIM2_Config(pulseCopy, N_SERVOS);
   
-  pulse(1, 19);
-  delay_ms(2000);
-  pulse(2, 18);
-  delay_ms(2000);
-
   enableInterrupts();
 
+  uint8_t updateRequired;
   while (42) {
-    delay_ms(100);
-    t += STEP;
-    if (t > UPPER_LIMIT) {
-      t = LOWER_LIMIT;
+    delay_ms(50);
+    
+    updateRequired = FALSE;
+    if (!testMask(PORT_ROT_LEFT->IDR, PIN_ROT_LEFT)) {
+      increasePulseWidth(pulse, N_SERVOS, COUNTER_SERVO_ROT);
+      updateRequired = TRUE;
     }
-    updatePulseParameters(t, PERIOD - t);
+    if (!testMask(PORT_ROT_RIGHT->IDR, PIN_ROT_RIGHT)) {
+      decreasePulseWidth(pulse, N_SERVOS, COUNTER_SERVO_ROT);
+      updateRequired = TRUE;
+    }
+    if (!testMask(PORT_MAIN_ARM_UP->IDR, PIN_MAIN_ARM_UP)) {
+      increasePulseWidth(pulse, N_SERVOS, COUNTER_SERVO_MAIN);
+      updateRequired = TRUE;
+    }
+    if (!testMask(PORT_MAIN_ARM_DOWN->IDR, PIN_MAIN_ARM_DOWN)) {
+      decreasePulseWidth(pulse, N_SERVOS, COUNTER_SERVO_MAIN);
+      updateRequired = TRUE;
+    }
+    if (!testMask(PORT_TIP_ARM_UP->IDR, PIN_TIP_ARM_UP)) {
+      increasePulseWidth(pulse, N_SERVOS, COUNTER_SERVO_TIP);
+      updateRequired = TRUE;
+    }
+    if (!testMask(PORT_TIP_ARM_DOWN->IDR, PIN_TIP_ARM_DOWN)) {
+      decreasePulseWidth(pulse, N_SERVOS, COUNTER_SERVO_TIP);
+      updateRequired = TRUE;
+    }
+    
+    if (updateRequired) {
+      memcpy(pulseCopy, pulse, N_SERVOS * sizeof(Pulse_t));
+      calculateCounterIncrements(pulseCopy, N_SERVOS);
+      updateCounterIncrements(pulseCopy, N_SERVOS);
+    }
   }
 }
 
@@ -79,30 +118,52 @@ static void CLK_Config() {
 }
 
 static void GPIO_Config() {
-  GPIO_Init(PORT_SERVO_CONTROL, (GPIO_Pin_TypeDef)PIN_SERVO_CONTROL, GPIO_MODE_OUT_PP_LOW_FAST);
-  GPIO_Init(PORT_BUTTON_UP, (GPIO_Pin_TypeDef)PIN_BUTTON_UP, GPIO_MODE_IN_PU_NO_IT);
-  GPIO_Init(PORT_BUTTON_DOWN, (GPIO_Pin_TypeDef)PIN_BUTTON_DOWN, GPIO_MODE_IN_PU_NO_IT);
+  // Configure outputs
+  GPIO_Init(PORT_SERVO_ROT, (GPIO_Pin_TypeDef)PIN_SERVO_ROT, GPIO_MODE_OUT_PP_LOW_FAST);
+  GPIO_Init(PORT_SERVO_MAIN_ARM, (GPIO_Pin_TypeDef)PIN_SERVO_MAIN_ARM, GPIO_MODE_OUT_PP_LOW_FAST);
+  GPIO_Init(PORT_SERVO_TIP_ARM, (GPIO_Pin_TypeDef)PIN_SERVO_TIP_ARM, GPIO_MODE_OUT_PP_LOW_FAST);
+  // Configure inputs
+  GPIO_Init(PORT_MAIN_ARM_UP, (GPIO_Pin_TypeDef)PIN_MAIN_ARM_UP, GPIO_MODE_IN_PU_NO_IT);
+  GPIO_Init(PORT_MAIN_ARM_DOWN, (GPIO_Pin_TypeDef)PIN_MAIN_ARM_DOWN, GPIO_MODE_IN_PU_NO_IT);
+  GPIO_Init(PORT_TIP_ARM_UP, (GPIO_Pin_TypeDef)PIN_TIP_ARM_UP, GPIO_MODE_IN_PU_NO_IT);
+  GPIO_Init(PORT_TIP_ARM_DOWN, (GPIO_Pin_TypeDef)PIN_TIP_ARM_DOWN, GPIO_MODE_IN_PU_NO_IT);
+  GPIO_Init(PORT_ROT_LEFT, (GPIO_Pin_TypeDef)PIN_ROT_LEFT, GPIO_MODE_IN_PU_NO_IT);
+  GPIO_Init(PORT_ROT_RIGHT, (GPIO_Pin_TypeDef)PIN_ROT_RIGHT, GPIO_MODE_IN_PU_NO_IT);
 }
 
-static void TIM2_Config(uint16_t t0, uint16_t t1) {
-  TIM2_DeInit();
-  
+static void TIM2_Config(Pulse_t pulse[], uint8_t size) {
   /*
-     Period T = 20 ms, pulse width t0 = 1..2 ms, system clock f0 = 16 MHz.
+     Period T = 20 ms, system clock f0 = 16 MHz.
      CNTR * PRESCALER = T * f0 = 20e-3 * 8e6 = 320e3.
      Minimal possible PRESCALER value in this case is 8, and CNTR = 320e3 / 8 = 40e3.
-     T = t0 + t1   =>   CNTR = CNTR_0 + CNTR_1
-     Thus:
-       PRESCALER = 8
-       CNTR_0 = 2000, CNTR_1 = 38000 <- t0 = 1 ms,   t1 = 19 ms
-       CNTR_0 = 3000, CNTR_1 = 37000 <- t0 = 1.5 ms, t1 = 18.5 ms
-       CNTR_0 = 4000, CNTR_1 = 36000 <- t0 = 2 ms,   t1 = 18 ms
   */
-  updatePulseParameters(t0, t1);
-  TIM2_TimeBaseInit(TIM2_PRESCALER_8, t0);
- // TIM2_PrescalerConfig(TIM2_PRESCALER_8, TIM2_PSCRELOADMODE_IMMEDIATE);
-  TIM4_ClearFlag(TIM4_FLAG_UPDATE);
+  TIM2_DeInit();
+  
+  TIM2_TimeBaseInit(TIM2_PRESCALER_8, PERIOD);
+  TIM2_PrescalerConfig(TIM2_PRESCALER_8, TIM2_PSCRELOADMODE_IMMEDIATE);
+  TIM2_ClearFlag(TIM2_FLAG_UPDATE);
   TIM2_ITConfig(TIM2_IT_UPDATE, ENABLE);
-  /* TIM2 enable counter */
+  
+  /*
+    Pulse width t0 = 1..2 ms, system clock f0 = 16 MHz.
+    CNTR * PRESCALER = T * f0 = 2e-3 * 8e6 = 32e3.
+    Minimal possible PRESCALER value in this case is 128, and CNTR = 32e3 / 128 = 250.
+    t0 => CNTR
+    Thus:
+      PRESCALER = 128
+      CNTR = 125 <- t0 = 1 ms
+      CNTR = 188 <- t0 = 1.5 ms
+      CNTR = 250 <- t0 = 2 ms
+  */
+  TIM4_DeInit();
+  
+  calculateCounterIncrements(pulse, size);
+  updateCounterIncrements(pulse, size);
+  TIM4_TimeBaseInit(TIM4_PRESCALER_128, LOWER_LIMIT);
+  TIM4_ClearFlag(TIM4_FLAG_UPDATE);
+  TIM4_ITConfig(TIM4_IT_UPDATE, ENABLE);
+
+  /* Start!!! */
   TIM2_Cmd(ENABLE);
+  // TIM2 interrupt handler enables TIM4
 }

@@ -33,10 +33,25 @@
 #include "stm8s.h"
 
 /* Exported types ------------------------------------------------------------*/
+struct Pulse_t {
+  uint8_t t;    // pulse width/time/etc.
+  uint8_t n;    // pulse ID number
+};
+
+typedef struct Pulse_t Pulse_t;
+
+enum CounterNumber_t {
+  COUNTER_SERVO_ROT,
+  COUNTER_SERVO_MAIN,
+  COUNTER_SERVO_TIP
+};
+
+typedef enum CounterNumber_t CounterNumber_t;
 /* Exported constants --------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
-void updatePulseParameters(uint16_t _t0, uint16_t _t1);
+void calculateCounterIncrements(Pulse_t pulseWidth[], uint8_t size);
+void updateCounterIncrements(Pulse_t pulse[], uint8_t size);
 
 #ifdef _COSMIC_
  void _stext(void); /* RESET startup routine */
