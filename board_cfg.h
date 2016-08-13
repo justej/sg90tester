@@ -33,4 +33,7 @@
 #define PORT_ROT_RIGHT          GPIOC
 #define PIN_ROT_RIGHT           GPIO_PIN_4
 
+#define PORT_PUMP_BUTTON        GPIOC
+#define PIN_PUMP_BUTTON         GPIO_PIN_3
+
 #endif // BOARD_CFG_H_

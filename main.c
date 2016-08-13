@@ -7,12 +7,14 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define UPPER_LIMIT             ((uint8_t)250)
-#define LOWER_LIMIT             ((uint8_t)125)
-#define STEP                    ((uint8_t)1)
-#define PERIOD                  ((uint16_t)40000)
+#define UPPER_LIMIT                 ((uint8_t)250)
+#define LOWER_LIMIT                 ((uint8_t)125)
+#define STEP                        ((uint8_t)1)
+#define PERIOD                      ((uint16_t)40000)
+#define KEY_POLLING_DELAY_MS        50
+#define DISABLE_COUNTER_INIT_VALUE  20
 
-#define F_CPU                   16000000ul
+#define F_CPU                       16000000ul
 /* Private function prototypes -----------------------------------------------*/
 static void CLK_Config();
 static void GPIO_Config();
@@ -71,8 +73,9 @@ void main(void) {
   enableInterrupts();
 
   uint8_t updateRequired;
+  uint8_t disableCounter = DISABLE_COUNTER_INIT_VALUE;
   while (42) {
-    delay_ms(50);
+    delay_ms(KEY_POLLING_DELAY_MS);
     
     updateRequired = FALSE;
     if (!testMask(PORT_ROT_LEFT->IDR, PIN_ROT_LEFT)) {
@@ -105,6 +108,20 @@ void main(void) {
       calculateCounterIncrements(pulseCopy, N_SERVOS);
       updateCounterIncrements(pulseCopy, N_SERVOS);
     }
+    
+    // When no movement commands, if pump button is not pressed we stop sending pulses to the arm
+    // after some delay (if pump button is pressed we continue sending commands in order to fix
+    // the position with, possibly, some load). This should sovle servo heating problem
+    if (!testMask(PORT_PUMP_BUTTON->IDR, PIN_PUMP_BUTTON) || updateRequired) {
+      disableCounter = DISABLE_COUNTER_INIT_VALUE;
+      TIM2_Cmd(ENABLE);
+    }
+    
+    if (disableCounter) {
+      disableCounter--;
+    } else {
+      TIM2_Cmd(DISABLE);
+    }
   }
 }
 
@@ -129,6 +146,7 @@ static void GPIO_Config() {
   GPIO_Init(PORT_TIP_ARM_DOWN, (GPIO_Pin_TypeDef)PIN_TIP_ARM_DOWN, GPIO_MODE_IN_PU_NO_IT);
   GPIO_Init(PORT_ROT_LEFT, (GPIO_Pin_TypeDef)PIN_ROT_LEFT, GPIO_MODE_IN_PU_NO_IT);
   GPIO_Init(PORT_ROT_RIGHT, (GPIO_Pin_TypeDef)PIN_ROT_RIGHT, GPIO_MODE_IN_PU_NO_IT);
+  GPIO_Init(PORT_PUMP_BUTTON, (GPIO_Pin_TypeDef)PIN_PUMP_BUTTON, GPIO_MODE_IN_PU_NO_IT);
 }
 
 static void TIM2_Config(Pulse_t pulse[], uint8_t size) {
@@ -163,7 +181,5 @@ static void TIM2_Config(Pulse_t pulse[], uint8_t size) {
   TIM4_ClearFlag(TIM4_FLAG_UPDATE);
   TIM4_ITConfig(TIM4_IT_UPDATE, ENABLE);
 
-  /* Start!!! */
-  TIM2_Cmd(ENABLE);
-  // TIM2 interrupt handler enables TIM4
+  // TIM2, TIM4 are NOT ENABLED yet
 }
