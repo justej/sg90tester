@@ -11,8 +11,8 @@
 #define LOWER_LIMIT                 ((uint8_t)125)
 #define STEP                        ((uint8_t)1)
 #define PERIOD                      ((uint16_t)40000)
-#define KEY_POLLING_DELAY_MS        50
-#define DISABLE_COUNTER_INIT_VALUE  20
+#define KEY_POLLING_DELAY_MS        10
+#define DISABLE_COUNTER_INIT_VALUE  100
 
 #define F_CPU                       16000000ul
 /* Private function prototypes -----------------------------------------------*/
