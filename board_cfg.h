@@ -14,6 +14,9 @@
 #define PORT_SERVO_TIP_ARM      GPIOD
 #define PIN_SERVO_TIP_ARM       GPIO_PIN_6
 
+#define PORT_PUMP_INVERTED      GPIOA
+#define PIN_PUMP_INVERTED       GPIO_PIN_3
+
 // Joystick (inputs)
 #define PORT_MAIN_ARM_UP        GPIOD
 #define PIN_MAIN_ARM_UP         GPIO_PIN_3

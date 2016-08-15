@@ -60,7 +60,7 @@ static void delay_ms(uint32_t ms) {
 void main(void) {
   Pulse_t pulse[N_SERVOS] = {
     {LOWER_LIMIT, COUNTER_SERVO_MAIN},
-    {LOWER_LIMIT, COUNTER_SERVO_TIP},
+    {(LOWER_LIMIT + UPPER_LIMIT) / 2, COUNTER_SERVO_TIP},
     {(LOWER_LIMIT + UPPER_LIMIT) / 2, COUNTER_SERVO_ROT} // Central position
   };
   Pulse_t pulseCopy[N_SERVOS];
@@ -73,6 +73,7 @@ void main(void) {
   enableInterrupts();
 
   uint8_t updateRequired;
+  uint8_t buttonPushed;
   uint8_t disableCounter = DISABLE_COUNTER_INIT_VALUE;
   while (42) {
     delay_ms(KEY_POLLING_DELAY_MS);
@@ -109,10 +110,18 @@ void main(void) {
       updateCounterIncrements(pulseCopy, N_SERVOS);
     }
     
+    buttonPushed = !testMask(PORT_PUMP_BUTTON->IDR, PIN_PUMP_BUTTON);
+    
+    if (buttonPushed) {
+      setBit(PORT_PUMP_INVERTED->ODR, PIN_PUMP_INVERTED);
+    } else {
+      resetBit(PORT_PUMP_INVERTED->ODR, PIN_PUMP_INVERTED);
+    }
+    
     // When no movement commands, if pump button is not pressed we stop sending pulses to the arm
     // after some delay (if pump button is pressed we continue sending commands in order to fix
     // the position with, possibly, some load). This should sovle servo heating problem
-    if (!testMask(PORT_PUMP_BUTTON->IDR, PIN_PUMP_BUTTON) || updateRequired) {
+    if (buttonPushed || updateRequired) {
       disableCounter = DISABLE_COUNTER_INIT_VALUE;
       TIM2_Cmd(ENABLE);
     }
@@ -139,6 +148,7 @@ static void GPIO_Config() {
   GPIO_Init(PORT_SERVO_ROT, (GPIO_Pin_TypeDef)PIN_SERVO_ROT, GPIO_MODE_OUT_PP_LOW_FAST);
   GPIO_Init(PORT_SERVO_MAIN_ARM, (GPIO_Pin_TypeDef)PIN_SERVO_MAIN_ARM, GPIO_MODE_OUT_PP_LOW_FAST);
   GPIO_Init(PORT_SERVO_TIP_ARM, (GPIO_Pin_TypeDef)PIN_SERVO_TIP_ARM, GPIO_MODE_OUT_PP_LOW_FAST);
+  GPIO_Init(PORT_PUMP_INVERTED, (GPIO_Pin_TypeDef)PIN_PUMP_INVERTED, GPIO_MODE_OUT_PP_LOW_FAST);
   // Configure inputs
   GPIO_Init(PORT_MAIN_ARM_UP, (GPIO_Pin_TypeDef)PIN_MAIN_ARM_UP, GPIO_MODE_IN_PU_NO_IT);
   GPIO_Init(PORT_MAIN_ARM_DOWN, (GPIO_Pin_TypeDef)PIN_MAIN_ARM_DOWN, GPIO_MODE_IN_PU_NO_IT);
