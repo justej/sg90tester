@@ -36,6 +36,8 @@
 struct Pulse_t {
   uint8_t t;    // pulse width/time/etc.
   uint8_t n;    // pulse ID number
+  uint8_t lowerLimit;
+  uint8_t upperLimit;
 };
 
 typedef struct Pulse_t Pulse_t;

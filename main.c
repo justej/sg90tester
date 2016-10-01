@@ -7,10 +7,15 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define UPPER_LIMIT                 ((uint8_t)250)
-#define LOWER_LIMIT                 ((uint8_t)125)
+#define SERVO_MAIN_LOWER_LIMIT      ((uint8_t)77)
+#define SERVO_MAIN_UPPER_LIMIT      ((uint8_t)206)
+#define SERVO_TIP_LOWER_LIMIT       ((uint8_t)50)
+#define SERVO_MAIN_UPPER_LIMIT      ((uint8_t)250)
+#define SERVO_ROT_LOWER_LIMIT       ((uint8_t)100)
+#define SERVO_ROT_UPPER_LIMIT       ((uint8_t)250)
 #define STEP                        ((uint8_t)1)
 #define PERIOD                      ((uint16_t)40000)
+
 #define KEY_POLLING_DELAY_MS        10
 #define DISABLE_COUNTER_INIT_VALUE  100
 
@@ -26,7 +31,7 @@ static void increasePulseWidth(Pulse_t pulse[], uint8_t size, CounterNumber_t n)
   while (size > 0) {
     size--;
     if (pulse[size].n == n) {
-      if (pulse[size].t < UPPER_LIMIT) {
+      if (pulse[size].t < pulse[size].upperLimit) {
         pulse[size].t += STEP;
       }
       return;
@@ -38,7 +43,7 @@ static void decreasePulseWidth(Pulse_t pulse[], uint8_t size, CounterNumber_t n)
   while (size > 0) {
     size--;
     if (pulse[size].n == n) {
-      if (pulse[size].t > LOWER_LIMIT) {
+      if (pulse[size].t > pulse[size].lowerLimit) {
         pulse[size].t -= STEP;
       }
       return;
@@ -59,9 +64,9 @@ static void delay_ms(uint32_t ms) {
 // Main entry point
 void main(void) {
   Pulse_t pulse[N_SERVOS] = {
-    {LOWER_LIMIT, COUNTER_SERVO_MAIN},
-    {(LOWER_LIMIT + UPPER_LIMIT) / 2, COUNTER_SERVO_TIP},
-    {(LOWER_LIMIT + UPPER_LIMIT) / 2, COUNTER_SERVO_ROT} // Central position
+    {(SERVO_MAIN_LOWER_LIMIT + SERVO_MAIN_UPPER_LIMIT) / 2, COUNTER_SERVO_MAIN, SERVO_MAIN_LOWER_LIMIT, SERVO_MAIN_UPPER_LIMIT},
+    {SERVO_TIP_LOWER_LIMIT, COUNTER_SERVO_TIP, SERVO_TIP_LOWER_LIMIT, SERVO_MAIN_UPPER_LIMIT},
+    {(SERVO_ROT_LOWER_LIMIT + SERVO_ROT_UPPER_LIMIT) / 2, COUNTER_SERVO_ROT, SERVO_ROT_LOWER_LIMIT, SERVO_ROT_UPPER_LIMIT} // Central position
   };
   Pulse_t pulseCopy[N_SERVOS];
   memcpy(pulseCopy, pulse, N_SERVOS * sizeof(Pulse_t));
@@ -187,7 +192,7 @@ static void TIM2_Config(Pulse_t pulse[], uint8_t size) {
   
   calculateCounterIncrements(pulse, size);
   updateCounterIncrements(pulse, size);
-  TIM4_TimeBaseInit(TIM4_PRESCALER_128, LOWER_LIMIT);
+  TIM4_TimeBaseInit(TIM4_PRESCALER_128, 1);
   TIM4_ClearFlag(TIM4_FLAG_UPDATE);
   TIM4_ITConfig(TIM4_IT_UPDATE, ENABLE);
 
