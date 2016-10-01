@@ -25,10 +25,10 @@
 #define PIN_MAIN_ARM_DOWN       GPIO_PIN_2
 
 #define PORT_TIP_ARM_UP         GPIOC
-#define PIN_TIP_ARM_UP          GPIO_PIN_7
+#define PIN_TIP_ARM_UP          GPIO_PIN_6
 
 #define PORT_TIP_ARM_DOWN       GPIOC
-#define PIN_TIP_ARM_DOWN        GPIO_PIN_6
+#define PIN_TIP_ARM_DOWN        GPIO_PIN_7
 
 #define PORT_ROT_LEFT           GPIOC
 #define PIN_ROT_LEFT            GPIO_PIN_5
