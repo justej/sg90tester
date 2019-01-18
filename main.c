@@ -7,17 +7,21 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define SERVO_MAIN_LOWER_LIMIT      ((uint8_t)77)
-#define SERVO_MAIN_UPPER_LIMIT      ((uint8_t)206)
+#define SERVO_MAIN_LOWER_LIMIT      ((uint8_t)100)
+#define SERVO_MAIN_UPPER_LIMIT      ((uint8_t)170)
+
 #define SERVO_TIP_LOWER_LIMIT       ((uint8_t)50)
-#define SERVO_MAIN_UPPER_LIMIT      ((uint8_t)250)
+#define SERVO_TIP_UPPER_LIMIT       ((uint8_t)250)
+
 #define SERVO_ROT_LOWER_LIMIT       ((uint8_t)100)
 #define SERVO_ROT_UPPER_LIMIT       ((uint8_t)250)
-#define STEP                        ((uint8_t)1)
-#define PERIOD                      ((uint16_t)40000)
 
+#define STEP                        ((uint8_t)1)
+
+#define PERIOD                      ((uint16_t)40000)
+//#define BUMP_LIMIT                  (255 + SERVO_MAIN_LOWER_LIMIT)
 #define KEY_POLLING_DELAY_MS        10
-#define DISABLE_COUNTER_INIT_VALUE  100
+#define DISABLE_COUNTER_INIT_VALUE  500
 
 #define F_CPU                       16000000ul
 /* Private function prototypes -----------------------------------------------*/
@@ -65,7 +69,7 @@ static void delay_ms(uint32_t ms) {
 void main(void) {
   Pulse_t pulse[N_SERVOS] = {
     {(SERVO_MAIN_LOWER_LIMIT + SERVO_MAIN_UPPER_LIMIT) / 2, COUNTER_SERVO_MAIN, SERVO_MAIN_LOWER_LIMIT, SERVO_MAIN_UPPER_LIMIT},
-    {SERVO_TIP_LOWER_LIMIT, COUNTER_SERVO_TIP, SERVO_TIP_LOWER_LIMIT, SERVO_MAIN_UPPER_LIMIT},
+    {SERVO_TIP_LOWER_LIMIT, COUNTER_SERVO_TIP, SERVO_TIP_LOWER_LIMIT, SERVO_TIP_UPPER_LIMIT},
     {(SERVO_ROT_LOWER_LIMIT + SERVO_ROT_UPPER_LIMIT) / 2, COUNTER_SERVO_ROT, SERVO_ROT_LOWER_LIMIT, SERVO_ROT_UPPER_LIMIT} // Central position
   };
   Pulse_t pulseCopy[N_SERVOS];
@@ -79,7 +83,7 @@ void main(void) {
 
   uint8_t updateRequired;
   uint8_t buttonPushed;
-  uint8_t disableCounter = DISABLE_COUNTER_INIT_VALUE;
+  uint16_t disableCounter = DISABLE_COUNTER_INIT_VALUE;
   while (42) {
     delay_ms(KEY_POLLING_DELAY_MS);
     
